@@ -30,9 +30,11 @@ conda-env/
 # --------------------
 # Logs & output files
 # --------------------
+*.dat
 *.out
 *.err
 *.log
+profile.txt
 slurm-*.out
 slurm-*.err
 
