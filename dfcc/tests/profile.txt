@@ -1,0 +1,4 @@
+Timing information:
+
+      0ms :  1000 calls :   0ms per call                               :     Timer Overhead
+     19ms :  1693 calls :   0ms per call                               :     dgemm

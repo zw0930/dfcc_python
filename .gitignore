@@ -1,0 +1,52 @@
+# --------------------
+# Python build artifacts
+# --------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Editable / packaging artifacts
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --------------------
+# Virtual environments
+# --------------------
+.venv/
+venv/
+env/
+conda-env/
+.env
+
+# --------------------
+# Jupyter / temp
+# --------------------
+.ipynb_checkpoints/
+
+# --------------------
+# Logs & output files
+# --------------------
+*.out
+*.err
+*.log
+slurm-*.out
+slurm-*.err
+
+# --------------------
+# OS / editor cruft
+# --------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --------------------
+# Misc
+# --------------------
+*.swp
+*.swo
+
