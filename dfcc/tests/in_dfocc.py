@@ -4,12 +4,13 @@ Psi4: dfocc
 Ref: notes_dfocc.pdf
 """
 
-import sys
+#import sys
 print("Python executable:", sys.executable)
 print("PYTHONPATH:", sys.path)
 
 import psi4
 from dfcc.dfocc import ccwfn
+from dfcc.data.molecules import *
 
 def df_h2o():
     # Psi4 Setup
@@ -25,13 +26,7 @@ def df_h2o():
                       'd_convergence': 1e-12,
                       'r_convergence': 1e-12,})
 
-    mol = psi4.geometry(
-        """
-        O
-        H 1 1.1
-        H 1 1.1 2 104
-        symmetry c1
-        """)
+    mol = psi4.geometry(moldict["H2O"]) 
     rhf_e, rhf_wfn = psi4.energy('SCF', return_wfn=True)
     aux_bas = psi4.core.BasisSet.build(mol, 'DF_BASIS_MP2', '', 'RIFIT', psi4.core.get_global_option('BASIS'))
 

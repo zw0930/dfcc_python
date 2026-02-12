@@ -5,12 +5,13 @@ Ref: J. Chem. Theory Comput. 2013, 9, 6, 2687–2696
     https://doi.org/10.1021/ct400250u
 """
 
-import sys
-print("Python executable:", sys.executable)
-print("PYTHONPATH:", sys.path)
+#import sys
+#print("Python executable:", sys.executable)
+#print("PYTHONPATH:", sys.path)
 
 import psi4
 from dfcc.fnocc import ccwfn
+from dfcc.data.molecules import *
 
 def df_h2o():
     # Psi4 Setup
@@ -26,13 +27,7 @@ def df_h2o():
                       'd_convergence': 1e-12,
                       'r_convergence': 1e-12,})
 
-    mol = psi4.geometry(
-        """
-        O
-        H 1 1.1
-        H 1 1.1 2 104
-        symmetry c1
-        """)
+    mol = psi4.geometry(moldict["H2O"])
     rhf_e, rhf_wfn = psi4.energy('SCF', return_wfn=True)
     # Two auxiliary sets are needed for DF-CC
     # T1-transformation
