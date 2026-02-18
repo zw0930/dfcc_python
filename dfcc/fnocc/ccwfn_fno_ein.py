@@ -579,7 +579,7 @@ class ccwfn(object):
     def build_L_aijb(self, BovQ, BvoQ, BooQ, BvvQ):
         contract = self.contract_ec
         tmp1 = contract('aiQ,jbQ->aijb', BvoQ, BovQ)
-        tmp2 = contract('abQ,jiQ->aijb', BvvQ, BooQ)
+        tmp2 = contract('abQ,jiQ->abji', BvvQ, BooQ).transpose(0,3,2,1)
         return 2 * tmp1 - tmp2
 
     def build_Tau_ijab(self, t1, t2):
@@ -615,7 +615,8 @@ class ccwfn(object):
     def build_Bia(self, u_ijab, BooQ, BovQ):
         contract = self.contract_ec
         tmp = contract('kiQ,lcQ->kilc', BooQ, BovQ)
-        return -1 * contract('klac,kilc->ia', u_ijab, tmp)
+        Bia = -1 * contract('kilc,klac->ia', tmp, u_ijab)
+        return Bia
 
     # Cia = sum_kc (F_kc u_ikac)
     def build_Cia(self, Fia, u_ijab):
@@ -641,10 +642,10 @@ class ccwfn(object):
     # B_{ij}^{ab} = \sum_{kl} (t_{kl}^{ab} ())
     def B_ijab(self, t2, BooQ, BovQ):
         contract = self.contract_ec
-        tmp1 = contract('kiQ, ljQ->kilj', BooQ, BooQ)
+        tmp1 = contract('kiQ, ljQ->kilj', BooQ, BooQ).transpose(1,3,0,2) # ijkl
         tmp2 = contract('kcQ, ldQ->kcld', BovQ, BovQ)
-        tmp1 = contract('ijcd,kcld->kilj', t2, tmp2, beta=1.0, out=tmp1)
-        Bijab = contract('klab, kilj->ijab', t2, tmp1)
+        tmp1 = contract('ijcd,kcld->ijkl', t2, tmp2, beta=1.0, out=tmp1)
+        Bijab = contract('ijkl,klab->ijab', tmp1, t2)
 
         return Bijab
 
@@ -653,19 +654,20 @@ class ccwfn(object):
         contract = self.contract_ec
         V1 = contract("kiQ,acQ->kiac", BooQ, BvvQ)
         V2 = contract("kdQ,lcQ->kdlc", BovQ, BovQ)
-        tmp = contract("liad,kdlc->kiac", t2, V2)
+        tmp = contract("liad,kdlc->iakc", t2, V2).transpose(2,0,1,3)
         V1 -= 0.5 * tmp
-        Cijab = contract("kjbc,kiac->ijab", t2, V1, alpha=-1.0)
+        Cijab = contract("kiac,kjbc->iajb", V1, t2, alpha=-1.0).swapaxes(1,2)
 
         return Cijab
 
     # Dijab = - 1 / 2 * sum_kc [u_jkbc (Laikc + 1 / 2 * (sum_ld[u_ilad L_ldkc]))]
     def D_ijab(self, L_iajb, L_aijb, u_ijab):
         contract = self.contract_ec
-        tmp = L_aijb.copy() #L_aikc
-        tmp = contract('ilad,ldkc->aikc', u_ijab, L_iajb, alpha=0.5, beta=1.0, out=tmp)
-        
-        return contract('jkbc,aikc->ijab', u_ijab, tmp, alpha=0.5)
+        tmp = L_aijb.swapaxes(0,1).copy()  # L_aikc ->iakc
+        tmp = contract('ilad,ldkc->iakc', u_ijab, L_iajb, alpha=0.5, beta=1.0, out=tmp)
+        Dijab = contract('jkbc,iakc->jbia', u_ijab, tmp, alpha=0.5).transpose(2,0,3,1)
+
+        return Dijab
 
     # Eijab = sum_c (t_ijac [Fbc - sum_kld(u_klbd [sum_Q (BldQ BkcQ)])])
     def E_ijab(self, t2, u_ijab, Fae, BovQ):
@@ -682,17 +684,18 @@ class ccwfn(object):
         contract = self.contract_ec
         tmp = Fij.copy()
         tmp1 = contract('kdQ,lcQ->kdlc', BovQ, BovQ)
-        tmp = contract('ljcd,kdlc->kj', u_ijab, tmp1, beta=1.0, out=tmp)
-        
-        return contract('ikab,kj->ijab', t2, tmp, alpha=-1.0)
+        tmp = contract('kdlc,ljcd->kj', tmp1, u_ijab, beta=1.0, out=tmp)
+        Gijab = contract('ikab,kj->iabj', t2, tmp, alpha=-1.0).transpose(0,3,1,2)
+
+        return Gijab
 
     # r2 = sum_Q (BiaQ BjbQ) + A_ijab + B_ijab + Pijab (1 / 2 * C_ijab + C_jiab + D_ijab + E_ijab + G_ijab)
     def r_T2(self, BvoQ, A_ijab, B_ijab, C_ijab, D_ijab, E_ijab, G_ijab):
         contract = self.contract_ec
-        r2 = contract('aiQ, bjQ->ijab', BvoQ, BvoQ)
+        r2 = contract('aiQ, bjQ->aibj', BvoQ, BvoQ).transpose(1,3,0,2)
         tmp = 0.5 * C_ijab.copy()
-        tmp += C_ijab.swapaxes(0,1) + D_ijab + E_ijab + G_ijab
-        r2 += A_ijab + B_ijab + tmp + tmp.swapaxes(0,1).swapaxes(2,3)
+        tmp += C_ijab.swapaxes(0, 1) + D_ijab + E_ijab + G_ijab
+        r2 += A_ijab + B_ijab + tmp + tmp.swapaxes(0, 1).swapaxes(2, 3)
 
         return r2
 
@@ -724,17 +727,17 @@ class ccwfn(object):
         Vooov = contract('mjQ,kcQ->mjkc', BooQ, BovQ)
         Vovov = contract('jbQ,kcQ->jbkc', BovQ, BovQ)
         # Build W
-        W = contract('iaeb,jkec->ijkabc', Vovvv, t2)
-        W = contract('mjkc,imab->ijkabc', Vooov, t2, alpha=-1.0, beta=1.0, out=W)
+        W = contract('iaeb,jkec->iabjkc', Vovvv, t2)
+        W = contract('imab,mjkc->iabjkc', t2, Vooov, alpha=-1.0, beta=1.0, out=W).transpose(0, 3, 4, 1, 2, 5)
         Wijkabc = self.P_ijkabc(W)
 
         #Wijkabc = W.copy()
         # Build V
         Fme = F[o,v].copy()
         Vijkabc = Wijkabc.copy()
-        Vijkabc = contract('ia,jbkc->ijkabc', t1, Vovov,beta=1.0, out=Vijkabc)
-        Vijkabc = contract('jb,iakc->ijkabc', t1, Vovov, beta=1.0, out=Vijkabc)
-        Vijkabc = contract('kc,iajb->ijkabc', t1, Vovov, beta=1.0, out=Vijkabc)
+        Vijkabc += contract('ia,jbkc->iajbkc', t1, Vovov).transpose(0, 2, 4, 1, 3, 5)
+        Vijkabc += contract('jb,iakc->jbiakc', t1, Vovov).transpose(2, 0, 4, 3, 1, 5)
+        Vijkabc += contract('kc,iajb->kciajb', t1, Vovov).transpose(2, 4, 0, 3, 5, 1)        
         #Vijkabc += contract('ia,jkbc->ijkabc', Fme, t2)
         #Vijkabc += contract('jb,ikac->ijkabc', Fme, t2)
         #Vijkabc += contract('kc,ijab->ijkabc', Fme, t2)
@@ -795,8 +798,8 @@ class ccwfn(object):
         # 2. Build W_{ijk}^{abc} as in the second algorithm
         #    W_raw(ijk,abc) = sum_e <ib|ae> t_{jk}^{ec} - sum_m <jk|mc> t_{im}^{ab}
         # --------------------------------------------------------------
-        W = contract('iaeb,jkec->ijkabc', Vovvv, t2)
-        W = contract('mjkc,imab->ijkabc', Vooov, t2, alpha=-1.0, beta=1.0, out=W)
+        W = contract('iaeb,jkec->iabjkc', Vovvv, t2)
+        W = contract('imab,mjkc->iabjkc', t2, Vooov, alpha=-1.0, beta=1.0, out=W).transpose(0,3,4,1,2,5)
 
         # Apply permutation operator P_{ijk}^{abc} so W is symmetrized
         # in (i,j,k) and (a,b,c), matching the derivation in the paper.
@@ -809,9 +812,9 @@ class ccwfn(object):
         Fme = F[o, v].copy()
 
         V = W.copy()
-        V = contract('ia,jbkc->ijkabc', t1, Vovov, beta=1.0, out=V)
-        V = contract('jb,iakc->ijkabc', t1, Vovov, beta=1.0, out=V)
-        V = contract('kc,iajb->ijkabc', t1, Vovov, beta=1.0, out=V)
+        V += contract('ia,jbkc->iajbkc', t1, Vovov).transpose(0,2,4,1,3,5)
+        V += contract('jb,iakc->jbiakc', t1, Vovov).transpose(2,0,4,3,1,5)
+        V += contract('kc,iajb->kciajb', t1, Vovov).transpose(2,4,0,3,5,1)
 
         # If you decide to include the F·t2 pieces, uncomment:
         # V += contract('ia,jkbc->ijkabc', Fme, t2)
